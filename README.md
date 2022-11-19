@@ -1,12 +1,14 @@
 # OASAelectric by Bluedrive team
 
 OASAelectric IOT box, is the hardware - sofware LoRaWAN telemetry solution for OASA micromobility proposal for Open Data Hackathon 2022. 
-
+This box sends GPS position of vehicle, the main battery status and can alert OASA services in case of mechanical failure. Telemetry data also incude vehicle ID, and client Ath.ENA NFC card ID.
+ 
 - Arduino board based
 - GPS UBLOX M8 module (  GPS - Glonass - Gallileo capable  )
 - Sensor of 13V battery
 - GPIO on / off alarm 
 - LoRaWAN module EBYTE E220-900T22D 868 MHz
+- NFC card reader
 
 ## Harware 
 
@@ -54,10 +56,10 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-    This code is initialy written for OpenData Hackathon https://crowdhackathon.com/open-data/ entry
+    This code is initialy written for OpenData Hackathon https://crowdhackathon.com/open-data/ Bluedrive Team entry
 
 ## To Do
 
-    Use of 
+    - Add NFC card reader
 
 ## Links
