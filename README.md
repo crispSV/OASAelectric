@@ -9,6 +9,8 @@ This box sends GPS position of vehicle, the main battery status and can alert OA
 - GPIO on / off alarm 
 - LoRaWAN module EBYTE E220-900T22D 868 MHz
 - NFC card reader
+- OLED display for bus and metro timetables and announcements ( to be implemented )
+
 
 ## Harware 
 
