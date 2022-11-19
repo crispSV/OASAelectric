@@ -1,5 +1,4 @@
 # OASAelectric
-OASAelectric IOT box for OASAelectric project - OpenData Hackathon 2022
 
 OASAelectric IOT box, is the hardware - sofware LoRaWAN telemetry solution for OASA electric scooter proposal for Open Data Hackathon 2022. 
 
