@@ -3,7 +3,7 @@
 OASAelectric IOT box, is the hardware - sofware LoRaWAN telemetry solution for OASA electric scooter proposal for Open Data Hackathon 2022. 
 
 - Arduino board based
-- GPS UBLOX M8 module (GPS - Glonass - Gallileo capable )
+- GPS UBLOX M8 module (  GPS - Glonass - Gallileo capable  )
 - Sensor of 13V battery
 - GPIO on / off alarm 
 - LoRaWAN 855 Mhz Module
