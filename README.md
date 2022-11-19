@@ -6,7 +6,7 @@ OASAelectric IOT box, is the hardware - sofware LoRaWAN telemetry solution for O
 - GPS UBLOX M8 module (  GPS - Glonass - Gallileo capable  )
 - Sensor of 13V battery
 - GPIO on / off alarm 
-- LoRaWAN 855 Mhz Module
+- LoRaWAN module EBYTE E220-900T22D 868 MHz
 
 ## Author
     Chris Papathanasiou developer@drmac.gr
