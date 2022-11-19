@@ -64,5 +64,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## To Do
 
     - Add NFC card reader
+    - Add ability to receive data from OASA API and display bus and metro timetable live on TFT display of EV
 
 ## Links
