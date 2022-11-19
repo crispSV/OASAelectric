@@ -1,6 +1,6 @@
-# OASAelectric
+# OASAelectric by Bluedrive team
 
-OASAelectric IOT box, is the hardware - sofware LoRaWAN telemetry solution for OASA electric scooter proposal for Open Data Hackathon 2022. 
+OASAelectric IOT box, is the hardware - sofware LoRaWAN telemetry solution for OASA micromobility proposal for Open Data Hackathon 2022. 
 
 - Arduino board based
 - GPS UBLOX M8 module (  GPS - Glonass - Gallileo capable  )
