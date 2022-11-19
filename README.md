@@ -8,19 +8,20 @@ OASAelectric IOT box, is the hardware - sofware LoRaWAN telemetry solution for O
 - GPIO on / off alarm 
 - LoRaWAN 855 Mhz Module
 
-# Author
+## Author
     Chris Papathanasiou developer@drmac.gr
     See also the list of contributors who participated in this project.
 
-# License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details
-#Acknowledgments
+
+## Acknowledgments
 
     This code is initialy written for OpenData Hackathon https://crowdhackathon.com/open-data/ entry
 
-# To Do
+## To Do
 
     Use of 
 
-# Links
+## Links
