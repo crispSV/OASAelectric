@@ -8,6 +8,27 @@ OASAelectric IOT box, is the hardware - sofware LoRaWAN telemetry solution for O
 - GPIO on / off alarm 
 - LoRaWAN module EBYTE E220-900T22D 868 MHz
 
+## Harware 
+Connecting the LoRa module
+
+Arduino Pins	 	  LoRa Pins
+Pin 2		——>		RX
+Pin 3		——>		TX
+Pin 4		——>		M0   
+Pin 5		——>		M1  
+Pin 6		——>		AX    
+5V		——>		VCC
+GND		——>		GND
+
+Connecting the GPS module
+
+Arduino Pins	 	  GPS Pins
+Pin 7		——>		TX
+Pin 8		——>		RX
+5V		——>		VCC
+GND		——>		GND
+
+
 ## Author
     Chris Papathanasiou developer@drmac.gr
     See also the list of contributors who participated in this project.
