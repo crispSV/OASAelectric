@@ -1,245 +1,268 @@
 /*
-Project OASAelectric EV IOT LoRaWAN tranceiver
+Project OASAelectric EV IOT LoRaWAN transmitter
+ (code for receiver to be implemented)
 
 Modules used:
 - Arduino UNO/Nano (ATMEGA328P)
-- GPS NMEA serial Module (UBLOX 8M)
-- LoRa EBYTE E220-900T22D (868 MHz)
-- OLED and NFC reader to be implemented later
+- GPS NMEA serial Module (UBLOX 6M)
+- LoRa SX1278 module
+- SSD1306 128×64 Oled i2c display Module
 
-Copyright Bluedrive team DataHackathon2022 Christos Papathanasiou - Maria Oikonomopoulou
+Copyright Bluedrive team DataHackathon2022
 */
 
-// ========== GENERAL SETTINGS ========== 
-#define NAME_LENGTH 12                   // the same value for all EV 
-char MY_NAME[NAME_LENGTH] = "OASA_EV_1234";  //  Unique name of electric vehicle
-#define CARD_ID_LENGTH 12				// ATH.ENA card ID length
-int MY_ID[CARD_ID_LENGTH]				// Read from NFC customer ATH.ENA ID (to be implemented)
-int ALARM=0								// initiate ALARM flag
+// Transmitter
+// needed Libraries
+#include <SoftwareSerial.h>
+#include <AltSoftSerial.h>
+#include <TinyGPS++.h>
+#include <SPI.h>              
+#include <LoRa.h>
+//--------------------------------------------------------------
 
-// ========== SERIAL DEBUGGING ========== 
-#define DEBUG_MODE false
-
-
-
-// ============ GPS SETTINGS ============ 
-#define GPS_PIN_RX 8
-#define GPS_PIN_TX 7
-#define GPS_PACKET_INTERVAL 20000 // milliseconds
-
-
-// =========== LORA SETTINGS =========== 
-#define LORA_PIN_RX 2
-#define LORA_PIN_TX 3
-#define LORA_PIN_M0 4
-#define LORA_PIN_M1 5
-#define LORA_PIN_AX 6
-int loraChannel = 5;  // default LORA channel
-// ======= END OF SETTINGS =============
-
-
-#include <SoftwareSerial.h>  // standart library
-#include <TinyGPSPlus.h>         // install from Arduino IDE
-#include "EBYTE.h"           // Lora module library
-
-// ========== GPS section ==========
+#include <Adafruit_GFX.h>			// Arduino display library 
+#include <Adafruit_SSD1306.h>		// OLED module library 
+//-------------------------------
+static const int RXPin = 8, TXPin = 9;
+static const uint32_t GPSBaud = 9600;
+ 
+// The TinyGPS++ object
 TinyGPSPlus gps;
-SoftwareSerial gps_ss(GPS_PIN_RX, GPS_PIN_TX);
+ 
+// The serial connection to the GPS device
+SoftwareSerial ss(RXPin, TXPin); // for gps
+/////////////////////////////////////////////////////
 
-// ========== LORA section ==========
-struct DATA {
-  float lat;
-  float lon;
-  unsigned char sat;
+String outgoing;              // outgoing message
+byte msgCount = 0;            // count of outgoing messages
+byte destination = 0xFF;     
+byte localAddress = 0xBB;
+long lastSendTime = 0;        // last send time
+int interval = 2000;          // interval between sends in ms 
+///----------------------
 
-  unsigned char year; // the Year minus 1900
-  unsigned char month;
-  unsigned char day;
+//  Oled display init
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+///-------------------------------
+String Mymessage = "";
+//--------------------------------------------------------------
 
-  unsigned char hour;
-  unsigned char minute;
-  unsigned char second;
+// Size of the geo fence (in meters)
+const float maxDistance = 3000;			// Geofencing so user notified if is out of track limits
 
-  char id[NAME_LENGTH];
-  char myid[MY_ID];
-};
+//--------------------------------------------------------------
+float initialLatitude = 37.973653;		// GPS init somewhere in Syntagma SQ Athens Greece
+float initialLongitude = 23.735321;
 
-DATA loraDataPacket;
-SoftwareSerial lora_ss(LORA_PIN_RX, LORA_PIN_TX);
-EBYTE loraTransceiver(&lora_ss, LORA_PIN_M0, LORA_PIN_M1, LORA_PIN_AX);
+float latitude, longitude;
 
-unsigned long lastLoraPacketTime;
+char buff[10];
+String mylong = ""; // for storing the longittude value
+String mylati = ""; // for storing the latitude value
 
+//--------------------------------------------------------------
 
-// ========== SETUP ==========  
+int msgstatus; 
+
+int Sensor1;
+int relay = 3;
+int alarm = 0; // alarm on malfunction 0=functioning
+int bat_volt = 13; //battery voltage 
+float distance;
+
+/*****************************************************************************************
+ * setup() function
+ *****************************************************************************************/
 void setup()
 {
+  //--------------------------------------------------------------
+  //Serial.println("Arduino serial initialize");
   Serial.begin(9600);
-
-
-
-  // GPS initialisation
-  gps_ss.begin(9600);
-  pinMode(LED_BUILTIN, OUTPUT); // GPS valid indicator
-  if (DEBUG_MODE) displayGPSInfo();
-
-  // LORA initialisation
-  lora_ss.begin(9600);
-  loraTransceiver.init();
-  loraTransceiver.SetAddressH(0xFF);
-  loraTransceiver.SetAddressL(0xFF);
-  loraTransceiver.SetChannel(loraChannel);
-  loraTransceiver.SaveParameters(PERMANENT);  // save the parameters to the unit
-
-  if (DEBUG_MODE) {
-    Serial.println("OASAelectric started...");
-    Serial.println("Current LORA parameters:");
-    loraTransceiver.PrintParameters();          // print all parameters for debugging
+   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  pinMode(relay, OUTPUT);
+  //--------------------------------------------------------------
+  //Serial.println("NEO6M serial initialize");
+    ss.begin(GPSBaud);
+  //--------------------------------------------------------------
+  if (!LoRa.begin(433E6)) {       
+    Serial.println("LoRa init failed. Check your connections.");
+    while (true);                       // if failed, do nothing
   }
+ 
+ Serial.println("LoRa init succeeded.");
 }
 
-// ========== MAIN LOOP ==========  
+/*****************************************************************************************
+ * loop() function
+ *****************************************************************************************/
 void loop()
 {
-  ListenLORA();  // listening and send to serial
-  sendGPStoLORA(); 
-}
 
+  while (ss.available() > 0)
+    if  ( gps.encode(ss.read() ) )
+    {
+     displayInfo();    
+  latitude = gps.location.lat(), 6 ;
+  longitude = gps.location.lng(), 6 ;
+  mylati = dtostrf(latitude, 3, 6, buff);
+  mylong = dtostrf(longitude, 3, 6, buff);
+  distance = getDistance(latitude, longitude, initialLatitude, initialLongitude);
 
-// =========================================== Listen LORA =====================================
-void ListenLORA() {
-  lora_ss.listen();     //switch to lora software serial
-  for (unsigned long start = millis(); millis() - start < GPS_PACKET_INTERVAL;) {
-    if (lora_ss.available()) {
-      loraTransceiver.GetStruct(&loraDataPacket, sizeof(loraDataPacket));
-      // if you got data, update the checker
-      lastLoraPacketTime  = millis();
+    }
+    
+  //--------------------------------------------------------------
+  if (millis() - lastSendTime > interval) {
+  //displayInfo(); 
 
-      // DEBUG_MODE
-      if (DEBUG_MODE){      // dump out what was just received
-        Serial.print("NEW LORA DATA RECIVED. ID: "); Serial.print(loraDataPacket.id);
-        Serial.print(" LAT: "); Serial.print(loraDataPacket.lat, 6);
-        Serial.print(" LON: "); Serial.print(loraDataPacket.lon, 6);
-        Serial.print(" SAT: "); Serial.print(loraDataPacket.sat);
+ // Serial.print("Latitude= "); Serial.println(latitude, 6);
+  //Serial.print("Lngitude= "); Serial.println(longitude, 6);
 
-        Serial.print(" Date: "); Serial.print(loraDataPacket.year);
-        Serial.print("/"); Serial.print(loraDataPacket.month);
-        Serial.print("/"); Serial.print(loraDataPacket.day);
-
-        Serial.print(" Time: "); Serial.print(loraDataPacket.hour);
-        Serial.print(":"); Serial.print(loraDataPacket.minute);
-        Serial.print(":"); Serial.println(loraDataPacket.second);
-
-        
-      }
-
-      getNewData(loraDataPacket);
+    if(distance > maxDistance) {
+      msgstatus =1;
+    }
+    
+    if(distance < maxDistance) {
+      msgstatus =0;
+       
+    }
       
+    // Serial.print("Distance: ");
+  //Serial.println(distance);
+   Mymessage = Mymessage + mylati +"," + mylong+","+msgstatus + "," +distance +"," + bat_volt +"," + alarm;  //Message to be send 
+     sendMessage(Mymessage);
+     //Serial.println(Mymessage);
+    delay(50);
+    Mymessage = "";
+  
 
-     
-    }
-    else {
-      // if the time checker is over some prescribed amount
-      // let the user know there is no incoming data
-      
-        lastLoraPacketTime = millis();
-      }
-    }
+  
+      //Serial.println("Sending " + message);
+    lastSendTime = millis();            // timestamp the message
+   
   }
+  // parse for a packet, and call onReceive with the result:
+  onReceive(LoRa.parsePacket());
+
+
+}
+
+// Calculate distance between two points
+float getDistance(float flat1, float flon1, float flat2, float flon2) {
+
+  // Variables
+  float dist_calc=0;
+  float dist_calc2=0;
+  float diflat=0;
+  float diflon=0;
+
+  // Calculations
+  diflat  = radians(flat2-flat1);
+  flat1 = radians(flat1);
+  flat2 = radians(flat2);
+  diflon = radians((flon2)-(flon1));
+
+  dist_calc = (sin(diflat/2.0)*sin(diflat/2.0));
+  dist_calc2 = cos(flat1);
+  dist_calc2*=cos(flat2);
+  dist_calc2*=sin(diflon/2.0);
+  dist_calc2*=sin(diflon/2.0);
+  dist_calc +=dist_calc2;
+
+  dist_calc=(2*atan2(sqrt(dist_calc),sqrt(1.0-dist_calc)));
+  
+  dist_calc*=6371000.0; //Converting to meters
+
+  return dist_calc;
+}
+void sendMessage(String outgoing) {
+  LoRa.beginPacket();                   // start packet
+  LoRa.write(destination);              // add destination address
+  LoRa.write(localAddress);             // add sender address
+  LoRa.write(msgCount);                 // add message ID
+  LoRa.write(outgoing.length());        // add payload length
+  LoRa.print(outgoing);                 // add payload
+  LoRa.endPacket();                     // finish packet and send it
+  msgCount++;                           // increment message ID
 }
 
 
-// =======------------------=== READ GPS and SEND TO LORA ==========
-void sendGPStoLORA() {
-  bool newData = false;
-  unsigned long chars;
-  unsigned short sentences, failed;
-  // For one second we parse GPS data and report some key values
-  gps_ss.listen();     //switch to gps software serial
-  for (unsigned long start = millis(); millis() - start < 1000;)
-  {
-    while (gps_ss.available() > 0)
-    if (gps.encode(gps_ss.read())){
-      newData = true;
-    }
+// Receiving function 
+
+void onReceive(int packetSize) {
+  if (packetSize == 0) return;          // if there's no packet, return
+
+  // read packet header bytes:
+  int recipient = LoRa.read();          // recipient address
+  byte sender = LoRa.read();            // sender address
+  byte incomingMsgId = LoRa.read();     // incoming msg ID
+  byte incomingLength = LoRa.read();    // incoming msg length
+
+  String incoming = "";
+
+  while (LoRa.available()) {
+    incoming += (char)LoRa.read();
   }
 
-  digitalWrite(LED_BUILTIN, LOW);
-  
-  if (newData && gps.location.isValid() && gps.date.isValid() && gps.time.isValid())
-  {
-    digitalWrite(LED_BUILTIN, HIGH); // GPS is valid
-    sendData( gps.location.lat(), gps.location.lng(), gps.satellites.value(), 
-              gps.date.year(), gps.date.month(), gps.date.day(), 
-              gps.time.hour(), gps.time.minute(), gps.time.second());
-    if (DEBUG_MODE) displayGPSInfo();
-  } else {
-    //sendData(0, 0, 0);
+  if (incomingLength != incoming.length()) {   // check length for error
+    //Serial.println("error: message length does not match length");
+    ;
+    return;                             // skip rest of function
   }
-  
-  if (gps.charsProcessed() < 10)
-    if (DEBUG_MODE) Serial.println("** GPS ERROR **");
+
+  // if the recipient isn't this device or broadcast,
+  if (recipient != localAddress && recipient != 0xFF) {
+   // Serial.println("This message is not for me.");
+    ;
+    return;                             // skip rest of function
+  }
+
+  // if message is for this device, or broadcast, print details:
+  //Serial.println("Received from: 0x" + String(sender, HEX));
+  //Serial.println("Sent to: 0x" + String(recipient, HEX));
+ //Serial.println("Message ID: " + String(incomingMsgId));
+ // Serial.println("Message length: " + String(incomingLength));
+ // Serial.println("Message: " + incoming);
+ //  Serial.println("RSSI: " + String(LoRa.packetRssi()));
+ //  Serial.println("Snr: " + String(LoRa.packetSnr()));
+ //  Serial.println();
+
+ String q = getValue(incoming, ',', 0); // Latitude
+ Serial.println(q);
+ Sensor1 = q.toInt();  // latitude
+
+ if ( Sensor1 == 1 )
+ {
+  digitalWrite(relay, HIGH);
+ }
+  if ( Sensor1 == 0 )
+ {
+  digitalWrite(relay, LOW);
+ }
 }
 
-
-// ========== SEND LORA DATA ==========  
-void sendData(float lat, float lon, unsigned short sat, 
-              unsigned char year, unsigned char month, unsigned char day, 
-              unsigned char hour, unsigned char minute, unsigned char second){
-  
-  // data set
-  loraDataPacket.lat = lat;
-  loraDataPacket.lon = lon;
-  loraDataPacket.sat = sat;
-
-  loraDataPacket.year = year;
-  loraDataPacket.month = month;
-  loraDataPacket.day = day;
-
-  loraDataPacket.hour = hour;
-  loraDataPacket.minute = minute;
-  loraDataPacket.second = second;
-
-  strcpy(loraDataPacket.id, MY_NAME);
-  strcpy(loraDataPacket.id, MY_ID);
-
-
-  // send
-  lora_ss.listen();
-  loraTransceiver.SendStruct(&loraDataPacket, sizeof(loraDataPacket));
-  // debug
-  if (DEBUG_MODE) Serial.println(F("SEND LORA DATE"));
-}
-
-
-// =================================== GPS ===========================================
-void displayGPSInfo() {
-  digitalWrite(LED_BUILTIN, HIGH);
-
-  Serial.print("MY GPS POSITION HAVE BEEN UPDATED: ");
-  Serial.print("Satellites in view: ");
-  Serial.println(gps.satellites.value()); 
-  
+void displayInfo()
+{
   Serial.print(F("Location: ")); 
-  
   if (gps.location.isValid())
   {
-    digitalWrite(LED_BUILTIN, HIGH);
     Serial.print(gps.location.lat(), 6);
     Serial.print(F(","));
     Serial.print(gps.location.lng(), 6);
+    Serial.print(" ");
+    Serial.print(F("Speed:"));
+    Serial.print(gps.speed.kmph());
   }
   else
   {
-    digitalWrite(LED_BUILTIN, LOW);
-    Serial.print(F("INVALID "));
-    Serial.print(gps.location.lat(), 6);
-    Serial.print(F(","));
-    Serial.print(gps.location.lat(), 6);
-    Serial.print(F(","));
-    Serial.print(gps.location.lng(), 6);
+    Serial.print(F("INVALID"));
   }
-
+ 
   Serial.print(F("  Date/Time: "));
   if (gps.date.isValid())
   {
@@ -253,7 +276,7 @@ void displayGPSInfo() {
   {
     Serial.print(F("INVALID"));
   }
-
+ 
   Serial.print(F(" "));
   if (gps.time.isValid())
   {
@@ -273,36 +296,24 @@ void displayGPSInfo() {
   {
     Serial.print(F("INVALID"));
   }
-
+ 
   Serial.println();
+ 
 }
 
 
-
-
-// =============================== DATA STORAGE ========================================
-#define STORAGE_SIZE 5
-DATA storage[STORAGE_SIZE];
-char storageCounter = 0;
-
-// ADD NEW DATA TO STORAGE
-void getNewData(DATA newData) {
-  bool isExist = false;
-  String newId = newData.id;
-
-  for(int i = 1; i <= storageCounter; i++){
-    String id = storage[i].id;
-
-    if( id == newId ) {
-      storage[i] = newData;
-      isExist = true;
-      
+String getValue(String data, char separator, int index)
+{
+    int found = 0;
+    int strIndex[] = { 0, -1 };
+    int maxIndex = data.length() - 1;
+ 
+    for (int i = 0; i <= maxIndex && found <= index; i++) {
+        if (data.charAt(i) == separator || i == maxIndex) {
+            found++;
+            strIndex[0] = strIndex[1] + 1;
+            strIndex[1] = (i == maxIndex) ? i+1 : i;
+        }
     }
-  }
-
-  if( !isExist ) {
-    storageCounter++;
-    if( storageCounter > STORAGE_SIZE ) storageCounter = STORAGE_SIZE;
-    storage[storageCounter] = newData;
-  }
+    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
