@@ -23,11 +23,11 @@ Pin 2		——>		RX
 
 Pin 3		——>		TX
 
-Pin 4		——>		M0  
+Pin 11		——>		M0  
 
-Pin 5		——>		M1  
+Pin 12		——>		M1  
 
-Pin 6		——>		AX   
+Pin 10		——>		AX   
 
 5V		——>		VCC
 
@@ -40,7 +40,7 @@ Connecting the GPS module
 Arduino Pins -------- GPS Pins
 
 
-Pin 7		——>		TX
+Pin 9		——>		TX
 
 Pin 8		——>		RX
 
